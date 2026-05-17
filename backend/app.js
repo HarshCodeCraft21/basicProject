@@ -63,4 +63,9 @@ app.use('/api/products', productRoutes);
 app.use(notFound);
 app.use(errorHandler);
 
+
+app.get("/", (req, res) => {
+  res.send("Backend API Running Successfully 🚀");
+});
+
 module.exports = app;
