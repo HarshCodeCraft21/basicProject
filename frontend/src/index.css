@@ -1,0 +1,60 @@
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Outfit:wght@300;400;500;600;700&display=swap');
+@import "tailwindcss";
+
+@theme {
+  
+  --color-harsh-beige: #fbfaf5;
+  --color-harsh-card: #f0ead2;
+  --color-brand-sand: #adc178;
+  --color-brand-clay: #a98467;
+  --color-espresso: #6c584c;
+  --color-earth-muted: #8c9f5e;
+  --color-sand-border: #dde5b6;
+
+  
+  --font-sans: "Inter", system-ui, -apple-system, sans-serif;
+  --font-serif: "Outfit", Georgia, Cambria, serif;
+
+  
+  --animate-fadeIn: fadeIn 0.3s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+
+  @keyframes fadeIn {
+    from {
+      opacity: 0;
+      transform: translateY(8px);
+    }
+    to {
+      opacity: 1;
+      transform: translateY(0);
+    }
+  }
+}
+
+
+html, body {
+  background-color: #fbfaf5;
+  color: #6c584c;
+  font-family: "Inter", system-ui, -apple-system, sans-serif;
+  scroll-behavior: smooth;
+  margin: 0;
+  padding: 0;
+}
+
+
+::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+
+::-webkit-scrollbar-track {
+  background: #f0ead2;
+}
+
+::-webkit-scrollbar-thumb {
+  background: #adc178;
+  border-radius: 4px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: #a98467;
+}
