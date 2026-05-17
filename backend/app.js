@@ -54,6 +54,9 @@ app.get('/api', (req, res) => {
   });
 });
 
+app.get("/", (req, res) => {
+  res.send("Backend API Running Successfully 🚀");
+});
 
 app.use('/api/auth', authRoutes);
 app.use('/api/categories', categoryRoutes);
@@ -62,10 +65,5 @@ app.use('/api/products', productRoutes);
 
 app.use(notFound);
 app.use(errorHandler);
-
-
-app.get("/", (req, res) => {
-  res.send("Backend API Running Successfully 🚀");
-});
 
 module.exports = app;
