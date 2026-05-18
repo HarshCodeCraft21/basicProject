@@ -276,7 +276,7 @@ const Cart = () => {
         <div className="border-b border-[#dde5b6] pb-6">
           <h1 className="font-serif text-3xl font-medium tracking-wide">Shopping Cart</h1>
           <p className="text-xs text-[#8c9f5e] mt-1 font-light">
-            You have selected {cartCount} object{cartCount !== 1 ? 's' : ''} in your Harsh bundle
+            You have selected {cartCount} Items{cartCount !== 1 ? 's' : ''} in your cart
           </p>
         </div>
 
@@ -392,7 +392,7 @@ const Cart = () => {
               
               {totalSavings > 0 && (
                 <div className="flex justify-between text-green-700 font-medium">
-                  <span>Harsh Discounts</span>
+                  <span>Discounted price</span>
                   <span>−Rs.{totalSavings.toFixed(2)}</span>
                 </div>
               )}
@@ -427,7 +427,7 @@ const Cart = () => {
                   Loading checkout...
                 </>
               ) : (
-                'Checkout Harsh Bundle'
+                'Checkout Order'
               )}
             </button>
 
