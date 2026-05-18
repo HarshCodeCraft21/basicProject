@@ -1,4 +1,47 @@
 const nodemailer = require('nodemailer');
+const https = require('https');
+
+/**
+ * Built-in HTTPS helper to send emails via Resend's API without external libraries
+ */
+const sendResendEmail = (options) => {
+  return new Promise((resolve, reject) => {
+    const data = JSON.stringify({
+      from: options.from,
+      to: [options.to],
+      subject: options.subject,
+      html: options.html
+    });
+
+    const reqOptions = {
+      hostname: 'api.resend.com',
+      path: '/emails',
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${options.apiKey}`,
+        'Content-Type': 'application/json',
+        'Content-Length': Buffer.byteLength(data)
+      }
+    };
+
+    const req = https.request(reqOptions, (res) => {
+      let body = '';
+      res.on('data', (chunk) => body += chunk);
+      res.on('end', () => {
+        if (res.statusCode >= 200 && res.statusCode < 300) {
+          resolve(JSON.parse(body));
+        } else {
+          reject(new Error(`Resend API returned status ${res.statusCode}: ${body}`));
+        }
+      });
+    });
+
+    req.on('error', (error) => reject(error));
+    req.write(data);
+    req.end();
+  });
+};
+
 
 /**
  * Creates and returns a Nodemailer Transporter.
@@ -203,9 +246,32 @@ const compileCustomerEmail = (order) => {
  */
 const sendOrderConfirmationEmail = async (order) => {
   try {
-    const transporter = await getTransporter();
     const htmlContent = compileCustomerEmail(order);
 
+    // 1. If RESEND_API_KEY is configured, send using Resend API (bypassing Render's SMTP port blocks)
+    if (process.env.RESEND_API_KEY) {
+      console.log('[Email Service]: RESEND_API_KEY detected. Sending email via Resend HTTP API...');
+      
+      const fromEmail = process.env.FROM_EMAIL || 'onboarding@resend.dev';
+      const fromName = 'Harsh Studio';
+      
+      const info = await sendResendEmail({
+        apiKey: process.env.RESEND_API_KEY,
+        from: `"${fromName}" <${fromEmail}>`,
+        to: order.user?.email,
+        subject: `Order Confirmed! Receipt ID: ${order.orderId}`,
+        html: htmlContent,
+      });
+
+      console.log(`[Email Service]: Order confirmation email successfully sent via Resend API. Response ID:`, info.id);
+      
+      // Return custom messageId object structure matching standard transporter behavior
+      return { messageId: info.id || `resend-${Date.now()}` };
+    }
+
+    // 2. Otherwise, fall back to standard SMTP / Nodemailer
+    console.log('[Email Service]: Falling back to standard SMTP configuration...');
+    const transporter = await getTransporter();
     const mailOptions = {
       from: process.env.FROM_EMAIL || (process.env.EMAIL_USER ? `"Harsh Studio" <${process.env.EMAIL_USER}>` : '"Harsh Studio" <receipts@harshstudio.com>'),
       to: order.user?.email,
@@ -226,6 +292,7 @@ const sendOrderConfirmationEmail = async (order) => {
     console.error('[Email Service Error]: Failed to dispatch order confirmation email:', error.message);
   }
 };
+
 
 module.exports = {
   sendOrderConfirmationEmail,
