@@ -1,7 +1,9 @@
-import React, { useContext } from 'react';
-import { Link } from 'react-router-dom';
+import React, { useContext, useState, useEffect } from 'react';
+import { Link, useNavigate } from 'react-router-dom';
 import { toast } from 'react-hot-toast';
 import { CartContext } from '../context/CartContext';
+import { AuthContext } from '../context/AuthContext';
+import API from '../services/api';
 
 const Cart = () => {
   const {
@@ -15,26 +17,234 @@ const Cart = () => {
     clearCart,
   } = useContext(CartContext);
 
+  const { isAuthenticated, user } = useContext(AuthContext);
+  const navigate = useNavigate();
+
+  const [isCheckoutLoading, setIsCheckoutLoading] = useState(false);
+  const [paymentSuccessData, setPaymentSuccessData] = useState(null);
+
   
   const shippingFee = cartTotal >= 1500 || cartTotal === 0 ? 0 : 150;
   const finalTotal = cartTotal + shippingFee;
 
-  const handleCheckout = () => {
-    if (cartItems.length === 0) return;
-    
-    
-    toast.success('Order placed successfully! Thank you for purchasing handcrafted Harsh objects.', {
-      duration: 5000,
-      style: {
-        background: '#f0ead2',
-        color: '#6c584c',
-        border: '1px solid #dde5b6',
-      },
+  // 1. Dynamic Script Loader helper for Razorpay SDK
+  const loadRazorpayScript = () => {
+    return new Promise((resolve) => {
+      if (window.Razorpay) {
+        resolve(true);
+        return;
+      }
+      const script = document.createElement('script');
+      script.src = 'https://checkout.razorpay.com/v1/checkout.js';
+      script.async = true;
+      script.onload = () => resolve(true);
+      script.onerror = () => resolve(false);
+      document.body.appendChild(script);
     });
-
-    
-    clearCart();
   };
+
+  // 2. Main checkout handler trigger
+  const handleCheckout = async () => {
+    if (cartItems.length === 0) return;
+
+    // A. Verify authentication before proceeding
+    if (!isAuthenticated) {
+      toast.error('Please sign in to proceed with checkout.');
+      // Store intent in sessionStorage to auto-trigger checkout after successful login
+      sessionStorage.setItem('pendingCheckout', 'true');
+      navigate('/login', { state: { from: { pathname: '/cart' } } });
+      return;
+    }
+
+    setIsCheckoutLoading(true);
+
+    try {
+      // B. Load Razorpay script
+      const scriptLoaded = await loadRazorpayScript();
+      if (!scriptLoaded) {
+        toast.error('Could not load the payment gateway SDK. Please check your network connection.');
+        setIsCheckoutLoading(false);
+        return;
+      }
+
+      // C. Request backend order creation
+      const requestProducts = cartItems.map((item) => ({
+        product: item._id,
+        quantity: item.quantity,
+        price: item.discountedPrice,
+      }));
+
+      const response = await API.post('/payments/create-order', {
+        products: requestProducts,
+        totalAmount: finalTotal,
+      });
+
+      if (!response.data || !response.data.success) {
+        throw new Error(response.data?.message || 'Error creating Razorpay order.');
+      }
+
+      const { order_id, amount, currency, key_id } = response.data.data;
+
+      // D. Define Razorpay checkout options
+      const options = {
+        key: key_id,
+        amount: amount,
+        currency: currency,
+        name: 'Harsh Studio',
+        description: `Bundle of ${cartCount} handcrafted object${cartCount !== 1 ? 's' : ''}`,
+        image: 'https://images.unsplash.com/photo-1612196808214-b8e1d6145a8c?q=80&w=200&auto=format&fit=crop',
+        order_id: order_id,
+        prefill: {
+          name: user?.name || '',
+          email: user?.email || '',
+        },
+        theme: {
+          color: '#a98467',
+        },
+        notes: {
+          userId: user?._id || '',
+        },
+        handler: async function (paymentResponse) {
+          const verificationToastId = toast.loading('Verifying secure transaction details...');
+          try {
+            // E. Verify transaction signature in backend
+            const verifyResponse = await API.post('/payments/verify-payment', {
+              razorpay_payment_id: paymentResponse.razorpay_payment_id,
+              razorpay_order_id: paymentResponse.razorpay_order_id,
+              razorpay_signature: paymentResponse.razorpay_signature,
+            });
+
+            if (verifyResponse.data && verifyResponse.data.success) {
+              toast.success('Payment successfully captured!', { id: verificationToastId });
+              
+              // Clear shopping cart items
+              clearCart();
+
+              // Trigger payment success receipt representation
+              setPaymentSuccessData(verifyResponse.data.data);
+            } else {
+              throw new Error(verifyResponse.data?.message || 'Cryptographic verification check failed.');
+            }
+          } catch (error) {
+            console.error('[Verification Failure]:', error);
+            toast.error(error.apiMessage || 'Could not verify payment. Please contact support.', {
+              id: verificationToastId,
+            });
+          } finally {
+            setIsCheckoutLoading(false);
+          }
+        },
+        modal: {
+          ondismiss: function () {
+            setIsCheckoutLoading(false);
+            toast.error('Payment checkout session was cancelled.', { icon: '⚠️' });
+          },
+        },
+      };
+
+      // F. Open Razorpay transaction popup window
+      const rzp = new window.Razorpay(options);
+      rzp.on('payment.failed', function (resp) {
+        setIsCheckoutLoading(false);
+        toast.error(`Payment failed: ${resp.error.description}`);
+      });
+      rzp.open();
+
+    } catch (error) {
+      console.error('[Checkout API Error]:', error);
+      setIsCheckoutLoading(false);
+      toast.error(error.apiMessage || 'Failed to initialize payment gateway checkout.');
+    }
+  };
+
+  // 3. Effect hook to restore check-out automatically after redirect login authentication
+  useEffect(() => {
+    if (isAuthenticated && sessionStorage.getItem('pendingCheckout') === 'true') {
+      sessionStorage.removeItem('pendingCheckout');
+      
+      // Short delay to let other state processes settle before initializing modal
+      const timer = setTimeout(() => {
+        handleCheckout();
+      }, 600);
+
+      return () => clearTimeout(timer);
+    }
+  }, [isAuthenticated]);
+
+  // 4. Premium checkout success receipt overlay
+  if (paymentSuccessData) {
+    return (
+      <div className="bg-[#fbfaf5] min-h-screen text-[#6c584c] py-16 px-6 flex items-center justify-center">
+        <div className="bg-[#f0ead2] border border-[#dde5b6] rounded-3xl p-8 md:p-12 max-w-2xl w-full shadow-md text-center flex flex-col items-center animate-fade-in">
+          {/* Animated Success Icon */}
+          <div className="w-16 h-16 bg-[#adc178]/20 border border-[#dde5b6] text-[#6c584c] rounded-full flex items-center justify-center mb-6 animate-bounce">
+            <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor" className="w-8 h-8 text-[#8c9f5e]">
+              <path strokeLinecap="round" strokeLinejoin="round" d="m4.5 12.75 6 6 9-13.5" />
+            </svg>
+          </div>
+
+          <span className="text-[10px] uppercase tracking-widest text-[#8c9f5e] font-bold">
+            Transaction Complete
+          </span>
+          <h2 className="font-serif text-3xl font-medium text-[#6c584c] mt-2 mb-4">
+            Thank you for your purchase
+          </h2>
+          <p className="text-xs text-[#8c9f5e] max-w-md font-light leading-relaxed mb-8">
+            Your payment was securely verified. We are preparing your order of handcrafted items using our signature sustainable wrap.
+          </p>
+
+          {/* Premium Receipt Summary */}
+          <div className="bg-[#fbfaf5]/60 border border-[#dde5b6]/60 rounded-2xl p-6 w-full text-left flex flex-col gap-4 mb-8">
+            <div className="flex justify-between border-b border-[#dde5b6]/40 pb-2 text-xs">
+              <span className="font-semibold text-[#8c9f5e]">Payment ID</span>
+              <span className="font-mono text-[#a98467] font-bold">{paymentSuccessData.paymentId}</span>
+            </div>
+            <div className="flex justify-between border-b border-[#dde5b6]/40 pb-2 text-xs">
+              <span className="font-semibold text-[#8c9f5e]">Razorpay Order ID</span>
+              <span className="font-mono text-[#a98467]">{paymentSuccessData.orderId}</span>
+            </div>
+            <div className="flex justify-between border-b border-[#dde5b6]/40 pb-2 text-xs">
+              <span className="font-semibold text-[#8c9f5e]">Estimated Delivery</span>
+              <span className="text-[#6c584c] font-medium">Within 5-7 business days</span>
+            </div>
+
+            {/* List of items purchased */}
+            <div className="flex flex-col gap-3 py-2">
+              <span className="text-[10px] uppercase tracking-widest text-[#8c9f5e] font-bold border-b border-[#dde5b6]/40 pb-1">
+                Items Purchased
+              </span>
+              {paymentSuccessData.products?.map((item) => (
+                <div key={item._id} className="flex items-center justify-between text-xs py-1">
+                  <div className="flex items-center gap-3">
+                    <img src={item.product?.image} alt={item.product?.title} className="w-8 h-8 rounded-lg object-cover border border-[#dde5b6]/40" />
+                    <div>
+                      <span className="font-semibold text-[#6c584c] line-clamp-1">{item.product?.title || 'Handcrafted Object'}</span>
+                      <span className="text-[9px] text-[#8c9f5e]">Qty: {item.quantity}</span>
+                    </div>
+                  </div>
+                  <span className="font-medium text-[#6c584c]">Rs.{(item.price * item.quantity).toFixed(2)}</span>
+                </div>
+              ))}
+            </div>
+
+            <div className="flex justify-between items-baseline pt-2 border-t border-[#dde5b6]/60">
+              <span className="font-serif text-sm font-semibold uppercase tracking-wider">Total Paid</span>
+              <span className="text-lg font-bold text-[#a98467]">Rs.{paymentSuccessData.totalAmount.toFixed(2)}</span>
+            </div>
+          </div>
+
+          <div className="flex gap-4">
+            <button
+              onClick={() => setPaymentSuccessData(null)}
+              className="px-6 py-3 font-semibold uppercase tracking-widest text-xs text-white bg-[#a98467] hover:bg-[#8c9f5e] rounded-xl transition-all duration-300 shadow-sm cursor-pointer"
+            >
+              Continue Shopping
+            </button>
+          </div>
+        </div>
+      </div>
+    );
+  }
 
   if (cartItems.length === 0) {
     return (
@@ -208,9 +418,17 @@ const Cart = () => {
             {/* Check-out Action Button */}
             <button
               onClick={handleCheckout}
-              className="w-full py-3.5 bg-[#a98467] hover:bg-[#8c9f5e] text-white text-xs uppercase tracking-widest font-semibold rounded-xl transition-all duration-300 shadow-sm flex items-center justify-center gap-2 cursor-pointer mt-2"
+              disabled={isCheckoutLoading}
+              className="w-full py-3.5 bg-[#a98467] hover:bg-[#8c9f5e] text-white text-xs uppercase tracking-widest font-semibold rounded-xl transition-all duration-300 shadow-sm flex items-center justify-center gap-2 cursor-pointer mt-2 disabled:opacity-50 disabled:cursor-not-allowed"
             >
-              Checkout Harsh Bundle
+              {isCheckoutLoading ? (
+                <>
+                  <span className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></span>
+                  Loading checkout...
+                </>
+              ) : (
+                'Checkout Harsh Bundle'
+              )}
             </button>
 
             <div className="text-[10px] text-[#8c9f5e] font-light text-center leading-relaxed">

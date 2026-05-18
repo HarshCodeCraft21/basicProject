@@ -13,15 +13,20 @@ const AdminDashboard = () => {
   const urlAction = searchParams.get('action') || '';
 
   
+  // 1. Product list states
   const [products, setProducts] = useState([]);
   const [categories, setCategories] = useState([]);
   const [loadingProducts, setLoadingProducts] = useState(true);
   const [loadingCategories, setLoadingCategories] = useState(true);
 
-  
+  // 2. Orders ledger states
+  const [orders, setOrders] = useState([]);
+  const [loadingOrders, setLoadingOrders] = useState(true);
+
+  // 3. Stats counters
   const [totalProductsCount, setTotalProductsCount] = useState(0);
 
-  
+  // 4. Category edit states
   const [newCatName, setNewCatName] = useState('');
   const [editingCategory, setEditingCategory] = useState(null);
   const [editCatName, setEditCatName] = useState('');
@@ -70,9 +75,25 @@ const AdminDashboard = () => {
     }
   };
 
+  // Fetch customer orders ledger
+  const fetchOrders = async () => {
+    setLoadingOrders(true);
+    try {
+      const response = await API.get('/payments/orders');
+      if (response.data && response.data.success) {
+        setOrders(response.data.data);
+      }
+    } catch (error) {
+      console.error('[Error loading orders]:', error.message);
+    } finally {
+      setLoadingOrders(false);
+    }
+  };
+
   useEffect(() => {
     fetchProducts();
     fetchCategories();
+    fetchOrders();
   }, []);
 
   
@@ -300,6 +321,16 @@ const AdminDashboard = () => {
           >
             Category Settings ({categories.length})
           </button>
+          <button
+            onClick={() => switchTab('orders')}
+            className={`pb-3 border-b-2 transition-all cursor-pointer ${
+              activeTab === 'orders'
+                ? 'border-[#a98467] text-[#a98467]'
+                : 'border-transparent text-[#8c9f5e] hover:text-[#6c584c]'
+            }`}
+          >
+            Customer Orders ({orders.length})
+          </button>
         </div>
 
         
@@ -330,7 +361,160 @@ const AdminDashboard = () => {
                 <span className="text-[10px] text-green-700 font-medium">Distinct catalog tags</span>
               </div>
 
+              <div className="bg-[#f0ead2] border border-[#dde5b6] rounded-2xl p-6 shadow-sm">
+                <svg className="w-8 h-8 text-[#a98467] mb-2" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth="1.5">
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M15.75 10.5V6a3.75 3.75 0 10-7.5 0v4.5m11.356-1.993l1.263 12c.07.665-.45 1.243-1.119 1.243H4.25a1.125 1.125 0 01-1.12-1.243l1.264-12A1.125 1.125 0 015.513 7.5h12.974c.576 0 1.059.435 1.119 1.007zM8.625 10.5a.375.375 0 11-.75 0 .375.375 0 01.75 0zm7.5 0a.375.375 0 11-.75 0 .375.375 0 01.75 0z" />
+                </svg>
+                <h4 className="text-xs uppercase tracking-widest text-[#8c9f5e] font-semibold">Customer Orders</h4>
+                <p className="font-serif text-3xl font-medium mt-2 text-[#6c584c]">{orders.length}</p>
+                <span className="text-[10px] text-green-700 font-medium">Total purchases logged</span>
+              </div>
+
+              <div className="bg-[#f0ead2] border border-[#dde5b6] rounded-2xl p-6 shadow-sm">
+                <svg className="w-8 h-8 text-[#a98467] mb-2" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth="1.5">
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M2.25 18.75a60.07 60.07 0 0 1 15.797 2.101c.727.198 1.453-.342 1.453-1.096V18.75M3.75 4.5h16.5M4.5 19.5h15M5.25 4.5v15m13.5-15v15M9.75 9.75h4.5m-4.5 3h4.5M9.75 6h4.5" />
+                </svg>
+                <h4 className="text-xs uppercase tracking-widest text-[#8c9f5e] font-semibold">Sales Revenue</h4>
+                <p className="font-serif text-3xl font-medium mt-2 text-green-700">
+                  Rs.{orders.filter(o => o.paymentStatus === 'paid').reduce((sum, o) => sum + o.totalAmount, 0).toFixed(2)}
+                </p>
+                <span className="text-[10px] text-green-700 font-medium">Verified payments</span>
+              </div>
+
             </div>
+          </div>
+        )}
+
+        {/* Customer Orders panel */}
+        {activeTab === 'orders' && (
+          <div className="bg-[#f0ead2] border border-[#dde5b6] rounded-2xl p-6 shadow-sm">
+            <div className="flex justify-between items-center mb-6 pb-4 border-b border-[#dde5b6]/40">
+              <h3 className="font-serif text-lg font-medium">Customer Transactions & Orders</h3>
+              <span className="px-3 py-1 bg-[#adc178]/25 text-[#6c584c] border border-[#dde5b6]/40 rounded-full text-xs font-semibold">
+                Total Orders: {orders.length}
+              </span>
+            </div>
+
+            {loadingOrders ? (
+              <div className="text-center py-12 text-xs font-semibold text-[#8c9f5e]">
+                Loading transactions ledger...
+              </div>
+            ) : orders.length > 0 ? (
+              <div className="overflow-x-auto">
+                <table className="w-full text-left text-xs text-[#6c584c] border-collapse">
+                  <thead>
+                    <tr className="border-b border-[#dde5b6] text-[#8c9f5e] uppercase tracking-wider font-semibold text-[10px]">
+                      <th className="pb-3 pr-4">Order ID & Date</th>
+                      <th className="pb-3 pr-4">Customer</th>
+                      <th className="pb-3 pr-4">Items Purchased</th>
+                      <th className="pb-3 pr-4">Total Amount</th>
+                      <th className="pb-3 text-right">Payment Status</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {orders.map((order) => {
+                      const formattedDate = new Date(order.createdAt).toLocaleDateString('en-IN', {
+                        year: 'numeric',
+                        month: 'short',
+                        day: 'numeric',
+                        hour: '2-digit',
+                        minute: '2-digit',
+                      });
+                      
+                      return (
+                        <tr
+                          key={order._id}
+                          className="border-b border-[#dde5b6]/35 hover:bg-[#fbfaf5]/20 transition-colors align-top"
+                        >
+                          {/* Order ID & Date */}
+                          <td className="py-4 pr-4">
+                            <span className="font-mono text-[11px] font-bold text-[#a98467] block">
+                              {order.orderId}
+                            </span>
+                            {order.paymentId && (
+                              <span className="font-mono text-[10px] text-[#8c9f5e] block">
+                                Pay ID: {order.paymentId}
+                              </span>
+                            )}
+                            <span className="text-[10px] text-[#8c9f5e] block mt-1">
+                              {formattedDate}
+                            </span>
+                          </td>
+
+                          {/* Customer Info */}
+                          <td className="py-4 pr-4">
+                            <span className="font-semibold block">{order.user?.name || 'Deleted Account'}</span>
+                            <span className="text-[#8c9f5e] text-[10px] block font-light">
+                              {order.user?.email || 'N/A'}
+                            </span>
+                          </td>
+
+                          {/* Ordered Products list */}
+                          <td className="py-4 pr-4">
+                            <div className="flex flex-col gap-2">
+                              {order.products?.map((item, idx) => (
+                                <div key={idx} className="flex items-center gap-2 text-xs">
+                                  <div className="w-8 h-8 rounded bg-[#fbfaf5] border border-[#dde5b6]/30 overflow-hidden flex-shrink-0">
+                                    <img
+                                      src={item.product?.image || 'https://images.unsplash.com/photo-1612196808214-b8e1d6145a8c?q=80&w=200'}
+                                      alt={item.product?.title}
+                                      className="w-full h-full object-cover"
+                                    />
+                                  </div>
+                                  <div>
+                                    <span className="font-semibold text-[#6c584c] block">
+                                      {item.product?.title || 'Unknown Handicraft'}
+                                    </span>
+                                    <span className="text-[10px] text-[#8c9f5e] block">
+                                      Qty: <span className="font-bold text-[#6c584c]">{item.quantity}</span> × Rs.{item.price.toFixed(2)}
+                                    </span>
+                                  </div>
+                                </div>
+                              ))}
+                            </div>
+                          </td>
+
+                          {/* Total amount paid */}
+                          <td className="py-4 pr-4">
+                            <span className="font-bold text-[#a98467] block text-sm">
+                              Rs.{order.totalAmount.toFixed(2)}
+                            </span>
+                            {order.shippingFee > 0 ? (
+                              <span className="text-[9px] text-[#8c9f5e] block font-light">
+                                Includes Rs.150 shipping
+                              </span>
+                            ) : (
+                              <span className="text-[9px] text-green-700 block font-light">
+                                Free shipping
+                              </span>
+                            )}
+                          </td>
+
+                          {/* Payment status badge */}
+                          <td className="py-4 text-right">
+                            <span
+                              className={`px-3 py-1 rounded-full text-[10px] uppercase font-bold tracking-wider inline-block ${
+                                order.paymentStatus === 'paid'
+                                  ? 'bg-[#adc178]/30 text-[#5c6e3b]'
+                                  : order.paymentStatus === 'pending'
+                                  ? 'bg-amber-100 text-amber-800'
+                                  : 'bg-red-100 text-red-800'
+                              }`}
+                            >
+                              {order.paymentStatus}
+                            </span>
+                          </td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
+            ) : (
+              <div className="text-center py-12 text-xs font-light text-[#8c9f5e]">
+                No customer transactions ledger logged yet.
+              </div>
+            )}
           </div>
         )}
 
