@@ -33,7 +33,7 @@ const registerUser = asyncHandler(async (req, res) => {
 
   if (user) {
     
-    generateToken(res, user._id);
+    const token = generateToken(res, user._id);
 
     sendSuccess(
       res,
@@ -43,6 +43,7 @@ const registerUser = asyncHandler(async (req, res) => {
         name: user.name,
         email: user.email,
         role: user.role,
+        token,
       },
       201
     );
@@ -66,13 +67,14 @@ const loginUser = asyncHandler(async (req, res) => {
 
   if (user && (await user.matchPassword(password))) {
     
-    generateToken(res, user._id);
+    const token = generateToken(res, user._id);
 
     sendSuccess(res, 'Login successful', {
       _id: user._id,
       name: user.name,
       email: user.email,
       role: user.role,
+      token,
     });
   } else {
     res.status(401);

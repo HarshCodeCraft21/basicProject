@@ -67,6 +67,9 @@ export const AuthProvider = ({ children }) => {
     try {
       const response = await API.post('/auth/login', { email, password });
       if (response.data && response.data.success) {
+        if (response.data.data.token) {
+          localStorage.setItem('authToken', response.data.data.token);
+        }
         dispatch({ type: 'LOGIN_SUCCESS', payload: response.data.data });
         return response.data;
       }
@@ -82,6 +85,9 @@ export const AuthProvider = ({ children }) => {
     try {
       const response = await API.post('/auth/signup', { name, email, password, role });
       if (response.data && response.data.success) {
+        if (response.data.data.token) {
+          localStorage.setItem('authToken', response.data.data.token);
+        }
         dispatch({ type: 'LOGIN_SUCCESS', payload: response.data.data });
         return response.data;
       }
@@ -96,6 +102,7 @@ export const AuthProvider = ({ children }) => {
     dispatch({ type: 'SET_LOADING', payload: true });
     try {
       await API.post('/auth/logout');
+      localStorage.removeItem('authToken');
       dispatch({ type: 'LOGOUT' });
     } catch (error) {
       dispatch({ type: 'SET_LOADING', payload: false });
