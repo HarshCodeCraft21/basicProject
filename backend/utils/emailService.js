@@ -1,9 +1,6 @@
 const nodemailer = require('nodemailer');
 const https = require('https');
 
-/**
- * Built-in HTTPS helper to send emails via Resend's API without external libraries
- */
 const sendResendEmail = (options) => {
   return new Promise((resolve, reject) => {
     const data = JSON.stringify({
@@ -43,12 +40,7 @@ const sendResendEmail = (options) => {
 };
 
 
-/**
- * Creates and returns a Nodemailer Transporter.
- * Automatically handles standard SMTP or Ethereal fallback.
- */
 const getTransporter = async () => {
-  // First priority: Gmail config from backend .env
   const isGmailConfig = process.env.EMAIL_USER && process.env.EMAIL_PASS;
   if (isGmailConfig) {
     console.log('[Email Service]: SMTP configured with Gmail account:', process.env.EMAIL_USER);
@@ -61,7 +53,6 @@ const getTransporter = async () => {
     });
   }
 
-  // Second priority: Generic custom SMTP config
   const hasSmtpConfig = process.env.SMTP_HOST && process.env.SMTP_USER && process.env.SMTP_PASS;
 
   if (hasSmtpConfig) {
@@ -76,7 +67,6 @@ const getTransporter = async () => {
     });
   }
 
-  // Fallback: Ethereal Mail for sandbox testing
   console.log('[Email Service]: SMTP configuration missing in .env. Creating test Ethereal Mail account...');
   try {
     const testAccount = await nodemailer.createTestAccount();
@@ -106,9 +96,6 @@ const getTransporter = async () => {
   }
 };
 
-/**
- * Compiles a beautiful premium responsive HTML template for customer order confirmation
- */
 const compileCustomerEmail = (order) => {
   const orderDateFormatted = new Date(order.orderDate || order.createdAt).toLocaleDateString('en-IN', {
     year: 'numeric',
@@ -241,14 +228,10 @@ const compileCustomerEmail = (order) => {
   `;
 };
 
-/**
- * Dispatches an order confirmation email to the customer
- */
 const sendOrderConfirmationEmail = async (order) => {
   try {
     const htmlContent = compileCustomerEmail(order);
 
-    // 1. If RESEND_API_KEY is configured, send using Resend API (bypassing Render's SMTP port blocks)
     if (process.env.RESEND_API_KEY) {
       console.log('[Email Service]: RESEND_API_KEY detected. Sending email via Resend HTTP API...');
       
@@ -265,11 +248,9 @@ const sendOrderConfirmationEmail = async (order) => {
 
       console.log(`[Email Service]: Order confirmation email successfully sent via Resend API. Response ID:`, info.id);
       
-      // Return custom messageId object structure matching standard transporter behavior
       return { messageId: info.id || `resend-${Date.now()}` };
     }
 
-    // 2. Otherwise, fall back to standard SMTP / Nodemailer
     console.log('[Email Service]: Falling back to standard SMTP configuration...');
     const transporter = await getTransporter();
     const mailOptions = {
@@ -282,7 +263,6 @@ const sendOrderConfirmationEmail = async (order) => {
     const info = await transporter.sendMail(mailOptions);
     console.log(`[Email Service]: Order confirmation email successfully sent to ${order.user?.email || 'customer'}. Message ID: ${info.messageId}`);
     
-    // If using ethereal test account, log URL to view the output browser email
     if (nodemailer.getTestMessageUrl(info)) {
       console.log(`[Email Service Ethereal]: View sent sandbox email at: ${nodemailer.getTestMessageUrl(info)}`);
     }

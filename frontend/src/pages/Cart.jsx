@@ -23,7 +23,6 @@ const Cart = () => {
   const [isCheckoutLoading, setIsCheckoutLoading] = useState(false);
   const [paymentSuccessData, setPaymentSuccessData] = useState(null);
 
-  // Profile modal states
   const [isProfileModalOpen, setIsProfileModalOpen] = useState(false);
   const [profileAddress, setProfileAddress] = useState('');
   const [profilePhone, setProfilePhone] = useState('');
@@ -33,7 +32,6 @@ const Cart = () => {
   const shippingFee = cartTotal >= 1500 || cartTotal === 0 ? 0 : 150;
   const finalTotal = cartTotal + shippingFee;
 
-  // 1. Dynamic Script Loader helper for Razorpay SDK
   const loadRazorpayScript = () => {
     return new Promise((resolve) => {
       if (window.Razorpay) {
@@ -49,20 +47,16 @@ const Cart = () => {
     });
   };
 
-  // 2. Main checkout handler trigger
   const handleCheckout = async () => {
     if (cartItems.length === 0) return;
 
-    // A. Verify authentication before proceeding
     if (!isAuthenticated) {
       toast.error('Please sign in to proceed with checkout.');
-      // Store intent in sessionStorage to auto-trigger checkout after successful login
       sessionStorage.setItem('pendingCheckout', 'true');
       navigate('/login', { state: { from: { pathname: '/cart' } } });
       return;
     }
 
-    // B. Verify profile complete
     if (!user?.address || !user?.phone) {
       setProfileAddress(user?.address || '');
       setProfilePhone(user?.phone || '');
@@ -70,16 +64,13 @@ const Cart = () => {
       return;
     }
 
-    // C. Already populated, proceed directly
     await proceedToRazorpay(user);
   };
 
-  // 2b. Razorpay Checkout Flow Execution
   const proceedToRazorpay = async (currentUser) => {
     setIsCheckoutLoading(true);
 
     try {
-      // A. Load Razorpay script
       const scriptLoaded = await loadRazorpayScript();
       if (!scriptLoaded) {
         toast.error('Could not load the payment gateway SDK. Please check your network connection.');
@@ -87,7 +78,6 @@ const Cart = () => {
         return;
       }
 
-      // B. Request backend order creation
       const requestProducts = cartItems.map((item) => ({
         product: item._id,
         quantity: item.quantity,
@@ -105,7 +95,6 @@ const Cart = () => {
 
       const { order_id, amount, currency, key_id } = response.data.data;
 
-      // C. Define Razorpay checkout options
       const options = {
         key: key_id,
         amount: amount,
@@ -128,7 +117,6 @@ const Cart = () => {
         handler: async function (paymentResponse) {
           const verificationToastId = toast.loading('Verifying secure transaction details...');
           try {
-            // E. Verify transaction signature in backend
             const verifyResponse = await API.post('/payments/verify-payment', {
               razorpay_payment_id: paymentResponse.razorpay_payment_id,
               razorpay_order_id: paymentResponse.razorpay_order_id,
@@ -138,10 +126,8 @@ const Cart = () => {
             if (verifyResponse.data && verifyResponse.data.success) {
               toast.success('Payment successfully captured!', { id: verificationToastId });
               
-              // Clear shopping cart items
               clearCart();
 
-              // Trigger payment success receipt representation
               setPaymentSuccessData(verifyResponse.data.data);
             } else {
               throw new Error(verifyResponse.data?.message || 'Cryptographic verification check failed.');
@@ -163,7 +149,6 @@ const Cart = () => {
         },
       };
 
-      // F. Open Razorpay transaction popup window
       const rzp = new window.Razorpay(options);
       rzp.on('payment.failed', function (resp) {
         setIsCheckoutLoading(false);
@@ -178,7 +163,6 @@ const Cart = () => {
     }
   };
 
-  // 2c. Save updated profile credentials & continue checkout flow automatically
   const handleProfileSubmit = async (e) => {
     e.preventDefault();
 
@@ -201,7 +185,6 @@ const Cart = () => {
         toast.success('Shipping profile updated successfully!');
         setIsProfileModalOpen(false);
         
-        // Resume checkout flow automatically with updated credentials
         const updatedUser = response.data;
         await proceedToRazorpay(updatedUser);
       }
@@ -212,12 +195,10 @@ const Cart = () => {
     }
   };
 
-  // 3. Effect hook to restore check-out automatically after redirect login authentication
   useEffect(() => {
     if (isAuthenticated && sessionStorage.getItem('pendingCheckout') === 'true') {
       sessionStorage.removeItem('pendingCheckout');
       
-      // Short delay to let other state processes settle before initializing modal
       const timer = setTimeout(() => {
         handleCheckout();
       }, 600);
@@ -226,12 +207,10 @@ const Cart = () => {
     }
   }, [isAuthenticated, user]);
 
-  // 4. Premium checkout success receipt overlay
   if (paymentSuccessData) {
     return (
       <div className="bg-[#fbfaf5] min-h-screen text-[#6c584c] py-16 px-6 flex items-center justify-center">
         <div className="bg-[#f0ead2] border border-[#dde5b6] rounded-3xl p-8 md:p-12 max-w-2xl w-full shadow-md text-center flex flex-col items-center animate-fade-in">
-          {/* Animated Success Icon */}
           <div className="w-16 h-16 bg-[#adc178]/20 border border-[#dde5b6] text-[#6c584c] rounded-full flex items-center justify-center mb-6 animate-bounce">
             <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor" className="w-8 h-8 text-[#8c9f5e]">
               <path strokeLinecap="round" strokeLinejoin="round" d="m4.5 12.75 6 6 9-13.5" />
@@ -248,7 +227,6 @@ const Cart = () => {
             Your payment was securely verified. We are preparing your order of handcrafted items using our signature sustainable wrap.
           </p>
 
-          {/* Premium Receipt Summary */}
           <div className="bg-[#fbfaf5]/60 border border-[#dde5b6]/60 rounded-2xl p-6 w-full text-left flex flex-col gap-4 mb-8">
             <div className="flex justify-between border-b border-[#dde5b6]/40 pb-2 text-xs">
               <span className="font-semibold text-[#8c9f5e]">Payment ID</span>
@@ -263,7 +241,6 @@ const Cart = () => {
               <span className="text-[#6c584c] font-medium">Within 5-7 business days</span>
             </div>
 
-            {/* List of items purchased */}
             <div className="flex flex-col gap-3 py-2">
               <span className="text-[10px] uppercase tracking-widest text-[#8c9f5e] font-bold border-b border-[#dde5b6]/40 pb-1">
                 Items Purchased

@@ -6,11 +6,9 @@ const { sendError } = require('../utils/responseHandler');
 const protect = async (req, res, next) => {
   let token;
 
-  // 1. Check for token in cookies
   if (req.cookies && req.cookies.token) {
     token = req.cookies.token;
   }
-  // 2. Check for token in Authorization header (Bearer <token>)
   else if (req.headers.authorization && req.headers.authorization.startsWith('Bearer')) {
     token = req.headers.authorization.split(' ')[1];
   }

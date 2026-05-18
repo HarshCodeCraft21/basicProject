@@ -7,10 +7,8 @@ require('dotenv').config();
 
 const PORT = process.env.PORT || 3000;
 
-// Create HTTP server
 const server = http.createServer(app);
 
-// Attach Socket.io with proper dynamic CORS origins matching client configurations
 const io = socketio(server, {
   cors: {
     origin: [
@@ -22,7 +20,6 @@ const io = socketio(server, {
   }
 });
 
-// Setup Socket.io connections
 io.on('connection', (socket) => {
   console.log(`[Socket.io Server]: Client connected with socket ID: ${socket.id}`);
 
@@ -31,7 +28,6 @@ io.on('connection', (socket) => {
   });
 });
 
-// Set Socket.io instance globally in the Express app settings
 app.set('socketio', io);
 
 const startServer = async () => {

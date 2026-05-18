@@ -13,20 +13,16 @@ const AdminDashboard = () => {
   const urlAction = searchParams.get('action') || '';
 
   
-  // 1. Product list states
   const [products, setProducts] = useState([]);
   const [categories, setCategories] = useState([]);
   const [loadingProducts, setLoadingProducts] = useState(true);
   const [loadingCategories, setLoadingCategories] = useState(true);
 
-  // 2. Orders ledger states
   const [orders, setOrders] = useState([]);
   const [loadingOrders, setLoadingOrders] = useState(true);
 
-  // 3. Stats counters
   const [totalProductsCount, setTotalProductsCount] = useState(0);
 
-  // 4. Category edit states
   const [newCatName, setNewCatName] = useState('');
   const [editingCategory, setEditingCategory] = useState(null);
   const [editCatName, setEditCatName] = useState('');
@@ -44,7 +40,6 @@ const AdminDashboard = () => {
   const [productImageFile, setProductImageFile] = useState(null);
   const [savingProduct, setSavingProduct] = useState(false);
 
-  // Selected order state for admin overlay modal
   const [selectedOrder, setSelectedOrder] = useState(null);
   const [isUpdatingStatus, setIsUpdatingStatus] = useState(false);
 
@@ -79,7 +74,6 @@ const AdminDashboard = () => {
     }
   };
 
-  // Fetch customer orders ledger
   const fetchOrders = async () => {
     setLoadingOrders(true);
     try {
@@ -94,7 +88,6 @@ const AdminDashboard = () => {
     }
   };
 
-  // Handle order status update
   const handleUpdateOrderStatus = async (orderId, orderStatus) => {
     setIsUpdatingStatus(true);
     const statusToastId = toast.loading('Updating order status parameters...');
@@ -103,10 +96,8 @@ const AdminDashboard = () => {
       if (response.data && response.data.success) {
         toast.success(`Order status updated to "${orderStatus}" successfully!`, { id: statusToastId });
         
-        // Refresh orders list
         await fetchOrders();
 
-        // Update selectedOrder state to reflect instantly in details modal
         setSelectedOrder(response.data.data);
       }
     } catch (error) {
@@ -412,7 +403,6 @@ const AdminDashboard = () => {
           </div>
         )}
 
-        {/* Customer Orders panel */}
         {activeTab === 'orders' && (
           <div className="bg-[#f0ead2] border border-[#dde5b6] rounded-2xl p-6 shadow-sm">
             <div className="flex justify-between items-center mb-6 pb-4 border-b border-[#dde5b6]/40">
@@ -460,7 +450,6 @@ const AdminDashboard = () => {
                           key={order._id}
                           className="border-b border-[#dde5b6]/35 hover:bg-[#fbfaf5]/20 transition-colors align-middle"
                         >
-                          {/* Order ID & Date */}
                           <td className="py-4 pr-4 font-medium">
                             <span className="font-mono text-[11px] font-bold text-[#a98467] block">
                               {order.orderId}
@@ -470,7 +459,6 @@ const AdminDashboard = () => {
                             </span>
                           </td>
 
-                          {/* Customer Name */}
                           <td className="py-4 pr-4">
                             <span className="font-semibold block">{order.user?.name || 'Deleted Account'}</span>
                             <span className="text-[#8c9f5e] text-[10px] block font-light">
@@ -478,14 +466,12 @@ const AdminDashboard = () => {
                             </span>
                           </td>
 
-                          {/* Total Amount */}
                           <td className="py-4 pr-4">
                             <span className="font-bold text-[#a98467] block text-sm">
                               Rs.{order.totalAmount.toFixed(2)}
                             </span>
                           </td>
 
-                          {/* Payment status badge */}
                           <td className="py-4 pr-4">
                             <span
                               className={`px-2.5 py-0.5 rounded-xl text-[9px] uppercase font-bold tracking-wider inline-block ${
@@ -500,7 +486,6 @@ const AdminDashboard = () => {
                             </span>
                           </td>
 
-                          {/* Order status badge */}
                           <td className="py-4 pr-4">
                             <span
                               className={`px-2.5 py-0.5 rounded-xl text-[9px] uppercase font-bold tracking-wider inline-block ${
@@ -515,7 +500,6 @@ const AdminDashboard = () => {
                             </span>
                           </td>
 
-                          {/* Actions */}
                           <td className="py-4 text-right">
                             <button
                               onClick={() => setSelectedOrder(order)}
@@ -854,11 +838,9 @@ const AdminDashboard = () => {
         </div>
       )}
 
-      {/* Selected Order Detailed Modal */}
       {selectedOrder && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-[#6c584c]/50 backdrop-blur-sm p-4 animate-fade-in">
           <div className="bg-[#f0ead2] border border-[#dde5b6] rounded-3xl p-6 md:p-8 shadow-xl max-w-2xl w-full flex flex-col relative max-h-[90vh] overflow-y-auto animate-fade-in text-[#6c584c]">
-            {/* Close Button */}
             <button
               onClick={() => setSelectedOrder(null)}
               className="absolute top-4 right-4 p-1.5 hover:bg-[#adc178]/25 text-[#8c9f5e] hover:text-[#6c584c] rounded-lg transition-all cursor-pointer"
@@ -881,7 +863,6 @@ const AdminDashboard = () => {
             <div className="h-px bg-[#dde5b6]/40 my-4"></div>
 
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6 text-xs mb-6">
-              {/* Customer Contact details */}
               <div className="flex flex-col gap-3">
                 <h4 className="text-[10px] uppercase tracking-wider font-bold text-[#8c9f5e]">Customer Profile</h4>
                 <div className="bg-[#fbfaf5]/60 border border-[#dde5b6] rounded-2xl p-4 flex flex-col gap-1.5 leading-relaxed">
@@ -900,7 +881,6 @@ const AdminDashboard = () => {
                 </div>
               </div>
 
-              {/* Shipping Address details */}
               <div className="flex flex-col gap-3">
                 <h4 className="text-[10px] uppercase tracking-wider font-bold text-[#8c9f5e]">Shipping Snapshot</h4>
                 <div className="bg-[#fbfaf5]/60 border border-[#dde5b6] rounded-2xl p-4 flex flex-col gap-1.5 leading-relaxed">
@@ -916,7 +896,6 @@ const AdminDashboard = () => {
               </div>
             </div>
 
-            {/* Ordered Products items listing */}
             <div className="flex flex-col gap-3 text-xs mb-6">
               <h4 className="text-[10px] uppercase tracking-wider font-bold text-[#8c9f5e]">Ordered Items</h4>
               <div className="flex flex-col border border-[#dde5b6] bg-white rounded-2xl overflow-hidden divide-y divide-[#dde5b6]/30 max-h-48 overflow-y-auto">
@@ -945,9 +924,7 @@ const AdminDashboard = () => {
               </div>
             </div>
 
-            {/* Transaction Ledger & Shipping status dropdown mapping */}
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6 items-end text-xs">
-              {/* Receipt metrics */}
               <div className="bg-[#fbfaf5]/60 border border-[#dde5b6] rounded-2xl p-4 flex flex-col gap-2 font-mono">
                 <div className="flex justify-between">
                   <span className="text-[#8c9f5e] uppercase text-[9px] font-bold tracking-wider">Order Date:</span>
@@ -973,7 +950,6 @@ const AdminDashboard = () => {
                 </div>
               </div>
 
-              {/* Status Droptown select management */}
               <div className="flex flex-col gap-1.5">
                 <label className="text-[10px] uppercase tracking-wider font-bold text-[#6c584c]">
                   Order Fulfillment Status
