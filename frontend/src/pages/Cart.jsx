@@ -17,11 +17,17 @@ const Cart = () => {
     clearCart,
   } = useContext(CartContext);
 
-  const { isAuthenticated, user } = useContext(AuthContext);
+  const { isAuthenticated, user, updateProfile } = useContext(AuthContext);
   const navigate = useNavigate();
 
   const [isCheckoutLoading, setIsCheckoutLoading] = useState(false);
   const [paymentSuccessData, setPaymentSuccessData] = useState(null);
+
+  // Profile modal states
+  const [isProfileModalOpen, setIsProfileModalOpen] = useState(false);
+  const [profileAddress, setProfileAddress] = useState('');
+  const [profilePhone, setProfilePhone] = useState('');
+  const [isSavingProfile, setIsSavingProfile] = useState(false);
 
   
   const shippingFee = cartTotal >= 1500 || cartTotal === 0 ? 0 : 150;
@@ -56,10 +62,24 @@ const Cart = () => {
       return;
     }
 
+    // B. Verify profile complete
+    if (!user?.address || !user?.phone) {
+      setProfileAddress(user?.address || '');
+      setProfilePhone(user?.phone || '');
+      setIsProfileModalOpen(true);
+      return;
+    }
+
+    // C. Already populated, proceed directly
+    await proceedToRazorpay(user);
+  };
+
+  // 2b. Razorpay Checkout Flow Execution
+  const proceedToRazorpay = async (currentUser) => {
     setIsCheckoutLoading(true);
 
     try {
-      // B. Load Razorpay script
+      // A. Load Razorpay script
       const scriptLoaded = await loadRazorpayScript();
       if (!scriptLoaded) {
         toast.error('Could not load the payment gateway SDK. Please check your network connection.');
@@ -67,11 +87,11 @@ const Cart = () => {
         return;
       }
 
-      // C. Request backend order creation
+      // B. Request backend order creation
       const requestProducts = cartItems.map((item) => ({
         product: item._id,
         quantity: item.quantity,
-        price: item.discountedPrice,
+        price: item.discountedPrice || item.originalPrice,
       }));
 
       const response = await API.post('/payments/create-order', {
@@ -85,7 +105,7 @@ const Cart = () => {
 
       const { order_id, amount, currency, key_id } = response.data.data;
 
-      // D. Define Razorpay checkout options
+      // C. Define Razorpay checkout options
       const options = {
         key: key_id,
         amount: amount,
@@ -95,14 +115,15 @@ const Cart = () => {
         image: 'https://images.unsplash.com/photo-1612196808214-b8e1d6145a8c?q=80&w=200&auto=format&fit=crop',
         order_id: order_id,
         prefill: {
-          name: user?.name || '',
-          email: user?.email || '',
+          name: currentUser?.name || '',
+          email: currentUser?.email || '',
+          contact: currentUser?.phone || '',
         },
         theme: {
           color: '#a98467',
         },
         notes: {
-          userId: user?._id || '',
+          userId: currentUser?._id || '',
         },
         handler: async function (paymentResponse) {
           const verificationToastId = toast.loading('Verifying secure transaction details...');
@@ -157,6 +178,40 @@ const Cart = () => {
     }
   };
 
+  // 2c. Save updated profile credentials & continue checkout flow automatically
+  const handleProfileSubmit = async (e) => {
+    e.preventDefault();
+
+    if (!profileAddress.trim() || !profilePhone.trim()) {
+      return toast.error('Please enter both shipping address and phone number.');
+    }
+
+    if (profileAddress.trim().length < 10) {
+      return toast.error('Shipping address must be detailed (at least 10 characters long).');
+    }
+
+    if (!/^\d{10}$/.test(profilePhone.trim())) {
+      return toast.error('Please enter a valid 10-digit mobile number.');
+    }
+
+    setIsSavingProfile(true);
+    try {
+      const response = await updateProfile(profileAddress.trim(), profilePhone.trim());
+      if (response && response.success) {
+        toast.success('Shipping profile updated successfully!');
+        setIsProfileModalOpen(false);
+        
+        // Resume checkout flow automatically with updated credentials
+        const updatedUser = response.data;
+        await proceedToRazorpay(updatedUser);
+      }
+    } catch (error) {
+      toast.error(error.apiMessage || 'Could not save shipping profile details.');
+    } finally {
+      setIsSavingProfile(false);
+    }
+  };
+
   // 3. Effect hook to restore check-out automatically after redirect login authentication
   useEffect(() => {
     if (isAuthenticated && sessionStorage.getItem('pendingCheckout') === 'true') {
@@ -169,7 +224,7 @@ const Cart = () => {
 
       return () => clearTimeout(timer);
     }
-  }, [isAuthenticated]);
+  }, [isAuthenticated, user]);
 
   // 4. Premium checkout success receipt overlay
   if (paymentSuccessData) {
@@ -440,6 +495,84 @@ const Cart = () => {
         </div>
 
       </div>
+
+      {/* Checkout Validation Modal */}
+      {isProfileModalOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-[#6c584c]/50 backdrop-blur-sm p-4 animate-fade-in">
+          <div className="bg-[#f0ead2] border border-[#dde5b6] rounded-3xl p-6 md:p-8 shadow-lg max-w-md w-full flex flex-col relative animate-fade-in">
+            {/* Close Button */}
+            <button
+              onClick={() => setIsProfileModalOpen(false)}
+              className="absolute top-4 right-4 p-1.5 hover:bg-[#adc178]/25 text-[#8c9f5e] hover:text-[#6c584c] rounded-lg transition-all cursor-pointer"
+            >
+              <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className="w-5 h-5">
+                <path strokeLinecap="round" strokeLinejoin="round" d="M6 18 18 6M6 6l12 12" />
+              </svg>
+            </button>
+
+            <span className="text-[10px] uppercase tracking-widest text-[#8c9f5e] font-bold mb-1">
+              Shipping Credentials Required
+            </span>
+            <h3 className="font-serif text-xl font-medium tracking-wide mb-2 text-[#6c584c]">
+              Complete Your Profile
+            </h3>
+            <p className="text-xs text-[#8c9f5e] font-light leading-relaxed mb-6">
+              Please provide your full shipping address and contact number to proceed with the secure checkout process.
+            </p>
+
+            <form onSubmit={handleProfileSubmit} className="flex flex-col gap-4 text-xs">
+              <div className="flex flex-col gap-1.5">
+                <label className="text-[10px] uppercase tracking-wider font-bold text-[#6c584c]">
+                  Delivery Phone Number
+                </label>
+                <input
+                  type="tel"
+                  placeholder="e.g. 9876543210"
+                  value={profilePhone}
+                  onChange={(e) => setProfilePhone(e.target.value.replace(/\D/g, '').slice(0, 10))}
+                  className="bg-[#fbfaf5]/60 border border-[#dde5b6] rounded-xl px-3 py-2.5 text-xs text-[#6c584c] focus:ring-1 focus:ring-[#a98467] focus:outline-none placeholder-[#8c9f5e]/40 font-mono"
+                  required
+                />
+                <span className="text-[9px] text-[#8c9f5e] font-light">
+                  Must be a valid 10-digit mobile number.
+                </span>
+              </div>
+
+              <div className="flex flex-col gap-1.5">
+                <label className="text-[10px] uppercase tracking-wider font-bold text-[#6c584c]">
+                  Full Shipping Address
+                </label>
+                <textarea
+                  placeholder="House No, Street, Landmark, City, State - Pincode"
+                  value={profileAddress}
+                  onChange={(e) => setProfileAddress(e.target.value)}
+                  rows="3"
+                  className="bg-[#fbfaf5]/60 border border-[#dde5b6] rounded-xl px-3 py-2.5 text-xs text-[#6c584c] focus:ring-1 focus:ring-[#a98467] focus:outline-none placeholder-[#8c9f5e]/40 resize-none leading-relaxed"
+                  required
+                />
+                <span className="text-[9px] text-[#8c9f5e] font-light">
+                  Provide detailed address for reliable delivery (min 10 characters).
+                </span>
+              </div>
+
+              <button
+                type="submit"
+                disabled={isSavingProfile}
+                className="w-full py-3.5 bg-[#a98467] hover:bg-[#8c9f5e] text-white text-xs uppercase tracking-widest font-semibold rounded-xl transition-all duration-300 shadow-sm flex items-center justify-center gap-2 cursor-pointer mt-2 disabled:opacity-50"
+              >
+                {isSavingProfile ? (
+                  <>
+                    <span className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></span>
+                    Saving details...
+                  </>
+                ) : (
+                  'Save & Proceed to Payment'
+                )}
+              </button>
+            </form>
+          </div>
+        </div>
+      )}
     </div>
   );
 };

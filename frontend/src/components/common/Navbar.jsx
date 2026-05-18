@@ -73,6 +73,9 @@ const Navbar = () => {
 
           {isAuthenticated ? (
             <div className="flex items-center gap-4">
+              <Link to="/orders" className="text-xs uppercase tracking-widest font-semibold text-[#6c584c]/80 hover:text-[#a98467] transition-colors duration-200">
+                My Orders
+              </Link>
               <span className="text-xs text-[#8c9f5e] font-light">
                 Hello, <span className="font-semibold text-[#6c584c]">{user.name.split(' ')[0]}</span>
               </span>
@@ -142,6 +145,12 @@ const Navbar = () => {
               </Link>
               <Link to="/admin" onClick={toggleMobileMenu} className="py-2 border-b border-[#dde5b6]/40 text-[#6c584c]">Dashboard</Link>
             </>
+          )}
+
+          {isAuthenticated && (
+            <Link to="/orders" onClick={toggleMobileMenu} className="py-2 border-b border-[#dde5b6]/40 text-[#6c584c]">
+              My Orders
+            </Link>
           )}
 
           {isAuthenticated ? (

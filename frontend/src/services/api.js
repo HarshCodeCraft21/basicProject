@@ -1,7 +1,14 @@
 import axios from 'axios';
 
+const getBaseURL = () => {
+  if (typeof window !== 'undefined' && (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1')) {
+    return 'http://localhost:3000/api';
+  }
+  return 'https://basicproject-rjat.onrender.com/api';
+};
+
 const API = axios.create({
-  baseURL: 'https://basicproject-rjat.onrender.com/api',
+  baseURL: getBaseURL(),
   withCredentials: true, 
   headers: {
     'Content-Type': 'application/json',

@@ -55,6 +55,29 @@ const orderSchema = new mongoose.Schema(
       enum: ['pending', 'paid', 'failed'],
       default: 'pending',
     },
+    shippingAddress: {
+      type: String,
+      required: [true, 'An order must have a shipping address'],
+      trim: true,
+    },
+    shippingPhone: {
+      type: String,
+      required: [true, 'An order must have a shipping phone number'],
+      trim: true,
+    },
+    orderStatus: {
+      type: String,
+      enum: ['Order Received', 'Packed', 'Dispatched', 'Delivered'],
+      default: 'Order Received',
+    },
+    quantity: {
+      type: Number,
+      default: 1,
+    },
+    orderDate: {
+      type: Date,
+      default: Date.now,
+    },
   },
   {
     timestamps: true,

@@ -17,6 +17,7 @@ import ProductDetails from './pages/ProductDetails';
 import Login from './pages/Login';
 import Signup from './pages/Signup';
 import Cart from './pages/Cart';
+import Orders from './pages/Orders';
 import AdminDashboard from './pages/AdminDashboard';
 
 function App() {
@@ -40,6 +41,16 @@ function App() {
                 
                 <Route path="/login" element={<Login />} />
                 <Route path="/signup" element={<Signup />} />
+
+                
+                <Route
+                  path="/orders"
+                  element={
+                    <ProtectedRoute>
+                      <Orders />
+                    </ProtectedRoute>
+                  }
+                />
 
                 
                 <Route

@@ -44,6 +44,10 @@ const AdminDashboard = () => {
   const [productImageFile, setProductImageFile] = useState(null);
   const [savingProduct, setSavingProduct] = useState(false);
 
+  // Selected order state for admin overlay modal
+  const [selectedOrder, setSelectedOrder] = useState(null);
+  const [isUpdatingStatus, setIsUpdatingStatus] = useState(false);
+
   
   const fetchProducts = async () => {
     setLoadingProducts(true);
@@ -87,6 +91,29 @@ const AdminDashboard = () => {
       console.error('[Error loading orders]:', error.message);
     } finally {
       setLoadingOrders(false);
+    }
+  };
+
+  // Handle order status update
+  const handleUpdateOrderStatus = async (orderId, orderStatus) => {
+    setIsUpdatingStatus(true);
+    const statusToastId = toast.loading('Updating order status parameters...');
+    try {
+      const response = await API.put(`/payments/orders/${orderId}/status`, { orderStatus });
+      if (response.data && response.data.success) {
+        toast.success(`Order status updated to "${orderStatus}" successfully!`, { id: statusToastId });
+        
+        // Refresh orders list
+        await fetchOrders();
+
+        // Update selectedOrder state to reflect instantly in details modal
+        setSelectedOrder(response.data.data);
+      }
+    } catch (error) {
+      console.error('[Error updating status]:', error.message);
+      toast.error(error.apiMessage || 'Could not update order status.', { id: statusToastId });
+    } finally {
+      setIsUpdatingStatus(false);
     }
   };
 
@@ -390,9 +417,15 @@ const AdminDashboard = () => {
           <div className="bg-[#f0ead2] border border-[#dde5b6] rounded-2xl p-6 shadow-sm">
             <div className="flex justify-between items-center mb-6 pb-4 border-b border-[#dde5b6]/40">
               <h3 className="font-serif text-lg font-medium">Customer Transactions & Orders</h3>
-              <span className="px-3 py-1 bg-[#adc178]/25 text-[#6c584c] border border-[#dde5b6]/40 rounded-full text-xs font-semibold">
-                Total Orders: {orders.length}
-              </span>
+              <button
+                onClick={fetchOrders}
+                className="p-1.5 hover:bg-[#adc178]/25 text-[#8c9f5e] hover:text-[#6c584c] rounded-lg transition-all cursor-pointer flex items-center gap-1 text-[10px] font-bold uppercase tracking-wider"
+              >
+                <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor" className="w-3.5 h-3.5">
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M16.023 9.348h4.992v-.001M2.985 19.644v-4.992m0 0h4.992m-4.993 0 3.181 3.183a8.25 8.25 0 0 0 13.803-3.7M4.031 9.865a8.25 8.25 0 0 1 13.803-3.7l3.181 3.182m0-4.991v4.99" />
+                </svg>
+                Sync Ledger
+              </button>
             </div>
 
             {loadingOrders ? (
@@ -400,20 +433,21 @@ const AdminDashboard = () => {
                 Loading transactions ledger...
               </div>
             ) : orders.length > 0 ? (
-              <div className="overflow-x-auto">
+              <div className="overflow-x-auto animate-fade-in">
                 <table className="w-full text-left text-xs text-[#6c584c] border-collapse">
                   <thead>
                     <tr className="border-b border-[#dde5b6] text-[#8c9f5e] uppercase tracking-wider font-semibold text-[10px]">
                       <th className="pb-3 pr-4">Order ID & Date</th>
-                      <th className="pb-3 pr-4">Customer</th>
-                      <th className="pb-3 pr-4">Items Purchased</th>
+                      <th className="pb-3 pr-4">Customer Name</th>
                       <th className="pb-3 pr-4">Total Amount</th>
-                      <th className="pb-3 text-right">Payment Status</th>
+                      <th className="pb-3 pr-4">Payment Status</th>
+                      <th className="pb-3 pr-4">Order Status</th>
+                      <th className="pb-3 text-right">Actions</th>
                     </tr>
                   </thead>
                   <tbody>
                     {orders.map((order) => {
-                      const formattedDate = new Date(order.createdAt).toLocaleDateString('en-IN', {
+                      const formattedDate = new Date(order.orderDate || order.createdAt).toLocaleDateString('en-IN', {
                         year: 'numeric',
                         month: 'short',
                         day: 'numeric',
@@ -424,76 +458,37 @@ const AdminDashboard = () => {
                       return (
                         <tr
                           key={order._id}
-                          className="border-b border-[#dde5b6]/35 hover:bg-[#fbfaf5]/20 transition-colors align-top"
+                          className="border-b border-[#dde5b6]/35 hover:bg-[#fbfaf5]/20 transition-colors align-middle"
                         >
                           {/* Order ID & Date */}
-                          <td className="py-4 pr-4">
+                          <td className="py-4 pr-4 font-medium">
                             <span className="font-mono text-[11px] font-bold text-[#a98467] block">
                               {order.orderId}
                             </span>
-                            {order.paymentId && (
-                              <span className="font-mono text-[10px] text-[#8c9f5e] block">
-                                Pay ID: {order.paymentId}
-                              </span>
-                            )}
-                            <span className="text-[10px] text-[#8c9f5e] block mt-1">
+                            <span className="text-[10px] text-[#8c9f5e] block mt-0.5">
                               {formattedDate}
                             </span>
                           </td>
 
-                          {/* Customer Info */}
+                          {/* Customer Name */}
                           <td className="py-4 pr-4">
                             <span className="font-semibold block">{order.user?.name || 'Deleted Account'}</span>
                             <span className="text-[#8c9f5e] text-[10px] block font-light">
-                              {order.user?.email || 'N/A'}
+                              ID: {order.user?._id ? `...${order.user._id.slice(-6)}` : 'N/A'}
                             </span>
                           </td>
 
-                          {/* Ordered Products list */}
-                          <td className="py-4 pr-4">
-                            <div className="flex flex-col gap-2">
-                              {order.products?.map((item, idx) => (
-                                <div key={idx} className="flex items-center gap-2 text-xs">
-                                  <div className="w-8 h-8 rounded bg-[#fbfaf5] border border-[#dde5b6]/30 overflow-hidden flex-shrink-0">
-                                    <img
-                                      src={item.product?.image || 'https://images.unsplash.com/photo-1612196808214-b8e1d6145a8c?q=80&w=200'}
-                                      alt={item.product?.title}
-                                      className="w-full h-full object-cover"
-                                    />
-                                  </div>
-                                  <div>
-                                    <span className="font-semibold text-[#6c584c] block">
-                                      {item.product?.title || 'Unknown Handicraft'}
-                                    </span>
-                                    <span className="text-[10px] text-[#8c9f5e] block">
-                                      Qty: <span className="font-bold text-[#6c584c]">{item.quantity}</span> × Rs.{item.price.toFixed(2)}
-                                    </span>
-                                  </div>
-                                </div>
-                              ))}
-                            </div>
-                          </td>
-
-                          {/* Total amount paid */}
+                          {/* Total Amount */}
                           <td className="py-4 pr-4">
                             <span className="font-bold text-[#a98467] block text-sm">
                               Rs.{order.totalAmount.toFixed(2)}
                             </span>
-                            {order.shippingFee > 0 ? (
-                              <span className="text-[9px] text-[#8c9f5e] block font-light">
-                                Includes Rs.150 shipping
-                              </span>
-                            ) : (
-                              <span className="text-[9px] text-green-700 block font-light">
-                                Free shipping
-                              </span>
-                            )}
                           </td>
 
                           {/* Payment status badge */}
-                          <td className="py-4 text-right">
+                          <td className="py-4 pr-4">
                             <span
-                              className={`px-3 py-1 rounded-full text-[10px] uppercase font-bold tracking-wider inline-block ${
+                              className={`px-2.5 py-0.5 rounded-xl text-[9px] uppercase font-bold tracking-wider inline-block ${
                                 order.paymentStatus === 'paid'
                                   ? 'bg-[#adc178]/30 text-[#5c6e3b]'
                                   : order.paymentStatus === 'pending'
@@ -503,6 +498,31 @@ const AdminDashboard = () => {
                             >
                               {order.paymentStatus}
                             </span>
+                          </td>
+
+                          {/* Order status badge */}
+                          <td className="py-4 pr-4">
+                            <span
+                              className={`px-2.5 py-0.5 rounded-xl text-[9px] uppercase font-bold tracking-wider inline-block ${
+                                order.orderStatus === 'Delivered'
+                                  ? 'bg-[#adc178]/25 text-[#6c584c]'
+                                  : order.orderStatus === 'Dispatched'
+                                  ? 'bg-[#a98467]/20 text-[#a98467]'
+                                  : 'bg-[#a98467]/10 text-[#6c584c]/85'
+                              }`}
+                            >
+                              {order.orderStatus}
+                            </span>
+                          </td>
+
+                          {/* Actions */}
+                          <td className="py-4 text-right">
+                            <button
+                              onClick={() => setSelectedOrder(order)}
+                              className="px-3.5 py-1.5 bg-[#a98467] hover:bg-[#8c9f5e] text-white text-[10px] uppercase tracking-widest font-semibold rounded-xl transition-all shadow-sm cursor-pointer"
+                            >
+                              View Details
+                            </button>
                           </td>
                         </tr>
                       );
@@ -830,6 +850,155 @@ const AdminDashboard = () => {
               </div>
 
             </form>
+          </div>
+        </div>
+      )}
+
+      {/* Selected Order Detailed Modal */}
+      {selectedOrder && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-[#6c584c]/50 backdrop-blur-sm p-4 animate-fade-in">
+          <div className="bg-[#f0ead2] border border-[#dde5b6] rounded-3xl p-6 md:p-8 shadow-xl max-w-2xl w-full flex flex-col relative max-h-[90vh] overflow-y-auto animate-fade-in text-[#6c584c]">
+            {/* Close Button */}
+            <button
+              onClick={() => setSelectedOrder(null)}
+              className="absolute top-4 right-4 p-1.5 hover:bg-[#adc178]/25 text-[#8c9f5e] hover:text-[#6c584c] rounded-lg transition-all cursor-pointer"
+            >
+              <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className="w-5 h-5">
+                <path strokeLinecap="round" strokeLinejoin="round" d="M6 18 18 6M6 6l12 12" />
+              </svg>
+            </button>
+
+            <span className="text-[10px] uppercase tracking-widest text-[#8c9f5e] font-bold mb-1">
+              Order Receipt Invoice
+            </span>
+            <h3 className="font-serif text-xl font-medium tracking-wide mb-2">
+              Order Detail Summary
+            </h3>
+            <span className="font-mono text-xs text-[#8c9f5e] select-all">
+              ID: {selectedOrder.orderId}
+            </span>
+
+            <div className="h-px bg-[#dde5b6]/40 my-4"></div>
+
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6 text-xs mb-6">
+              {/* Customer Contact details */}
+              <div className="flex flex-col gap-3">
+                <h4 className="text-[10px] uppercase tracking-wider font-bold text-[#8c9f5e]">Customer Profile</h4>
+                <div className="bg-[#fbfaf5]/60 border border-[#dde5b6] rounded-2xl p-4 flex flex-col gap-1.5 leading-relaxed">
+                  <div>
+                    <span className="text-[9px] uppercase font-bold text-[#8c9f5e] block leading-none mb-0.5">Name</span>
+                    <span className="font-semibold">{selectedOrder.user?.name || 'Deleted Account'}</span>
+                  </div>
+                  <div>
+                    <span className="text-[9px] uppercase font-bold text-[#8c9f5e] block leading-none mb-0.5">Email</span>
+                    <span className="font-mono">{selectedOrder.user?.email || 'N/A'}</span>
+                  </div>
+                  <div>
+                    <span className="text-[9px] uppercase font-bold text-[#8c9f5e] block leading-none mb-0.5">Profile Phone</span>
+                    <span className="font-mono">{selectedOrder.user?.phone || 'N/A'}</span>
+                  </div>
+                </div>
+              </div>
+
+              {/* Shipping Address details */}
+              <div className="flex flex-col gap-3">
+                <h4 className="text-[10px] uppercase tracking-wider font-bold text-[#8c9f5e]">Shipping Snapshot</h4>
+                <div className="bg-[#fbfaf5]/60 border border-[#dde5b6] rounded-2xl p-4 flex flex-col gap-1.5 leading-relaxed">
+                  <div>
+                    <span className="text-[9px] uppercase font-bold text-[#8c9f5e] block leading-none mb-0.5">Shipping Address</span>
+                    <p className="font-light">{selectedOrder.shippingAddress || 'N/A'}</p>
+                  </div>
+                  <div>
+                    <span className="text-[9px] uppercase font-bold text-[#8c9f5e] block leading-none mb-0.5">Shipping Phone</span>
+                    <span className="font-mono font-bold text-[#6c584c]">{selectedOrder.shippingPhone || 'N/A'}</span>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            {/* Ordered Products items listing */}
+            <div className="flex flex-col gap-3 text-xs mb-6">
+              <h4 className="text-[10px] uppercase tracking-wider font-bold text-[#8c9f5e]">Ordered Items</h4>
+              <div className="flex flex-col border border-[#dde5b6] bg-white rounded-2xl overflow-hidden divide-y divide-[#dde5b6]/30 max-h-48 overflow-y-auto">
+                {selectedOrder.products?.map((item, idx) => (
+                  <div key={idx} className="p-3 flex items-center justify-between gap-4">
+                    <div className="flex items-center gap-3">
+                      <img
+                        src={item.product?.image || 'https://images.unsplash.com/photo-1612196808214-b8e1d6145a8c?q=80&w=200'}
+                        alt={item.product?.title}
+                        className="w-10 h-10 object-cover border border-[#dde5b6]/40 rounded-lg shrink-0"
+                      />
+                      <div className="flex flex-col">
+                        <span className="font-semibold text-[#6c584c]">
+                          {item.product?.title || 'Unknown Handicraft'}
+                        </span>
+                        <span className="text-[10px] text-[#8c9f5e] font-light">
+                          Qty: {item.quantity} &times; Rs.{item.price.toFixed(2)}
+                        </span>
+                      </div>
+                    </div>
+                    <span className="font-bold text-[#a98467] font-mono">
+                      Rs.{(item.price * item.quantity).toFixed(2)}
+                    </span>
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            {/* Transaction Ledger & Shipping status dropdown mapping */}
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6 items-end text-xs">
+              {/* Receipt metrics */}
+              <div className="bg-[#fbfaf5]/60 border border-[#dde5b6] rounded-2xl p-4 flex flex-col gap-2 font-mono">
+                <div className="flex justify-between">
+                  <span className="text-[#8c9f5e] uppercase text-[9px] font-bold tracking-wider">Order Date:</span>
+                  <span className="text-[#6c584c] text-sans font-medium">
+                    {new Date(selectedOrder.orderDate || selectedOrder.createdAt).toLocaleDateString('en-IN', {
+                      year: 'numeric',
+                      month: 'short',
+                      day: 'numeric',
+                    })}
+                  </span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="text-[#8c9f5e] uppercase text-[9px] font-bold tracking-wider">Pay Status:</span>
+                  <span className={`px-2 py-0.5 text-[9px] font-bold rounded-lg ${
+                    selectedOrder.paymentStatus === 'paid' ? 'bg-[#adc178]/30 text-[#5c6e3b]' : 'bg-amber-100 text-amber-800'
+                  }`}>
+                    {selectedOrder.paymentStatus}
+                  </span>
+                </div>
+                <div className="flex justify-between border-t border-[#dde5b6]/30 pt-2 font-sans font-bold">
+                  <span className="text-[#6c584c] uppercase text-[9px] tracking-wider">Total Price:</span>
+                  <span className="text-[#a98467] text-sm">Rs.{selectedOrder.totalAmount.toFixed(2)}</span>
+                </div>
+              </div>
+
+              {/* Status Droptown select management */}
+              <div className="flex flex-col gap-1.5">
+                <label className="text-[10px] uppercase tracking-wider font-bold text-[#6c584c]">
+                  Order Fulfillment Status
+                </label>
+                <div className="relative">
+                  <select
+                    value={selectedOrder.orderStatus}
+                    onChange={(e) => handleUpdateOrderStatus(selectedOrder._id, e.target.value)}
+                    disabled={isUpdatingStatus}
+                    className="w-full bg-[#fbfaf5]/80 border border-[#dde5b6] rounded-xl px-3 py-2.5 text-xs text-[#6c584c] focus:ring-1 focus:ring-[#a98467] focus:outline-none cursor-pointer disabled:opacity-50 appearance-none font-semibold"
+                  >
+                    <option value="Order Received">Order Received</option>
+                    <option value="Packed">Packed</option>
+                    <option value="Dispatched">Dispatched</option>
+                    <option value="Delivered">Delivered</option>
+                  </select>
+                  <div className="pointer-events-none absolute inset-y-0 right-0 flex items-center px-3 text-[#8c9f5e]">
+                    <svg className="fill-current h-4 w-4" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20">
+                      <path d="M9.293 12.95l.707.707L15.657 8l-1.414-1.414L10 10.828 5.757 6.586 4.343 8z"/>
+                    </svg>
+                  </div>
+                </div>
+              </div>
+            </div>
+
           </div>
         </div>
       )}

@@ -99,9 +99,41 @@ const getCurrentUser = asyncHandler(async (req, res) => {
   sendSuccess(res, 'User profile fetched successfully', req.user);
 });
 
+
+const updateUserProfile = asyncHandler(async (req, res) => {
+  const { address, phone } = req.body;
+
+  if (!address || !phone) {
+    res.status(400);
+    throw new Error('Please fill in both full address and phone number');
+  }
+
+  const user = await User.findById(req.user._id);
+
+  if (user) {
+    user.address = address;
+    user.phone = phone;
+
+    const updatedUser = await user.save();
+
+    sendSuccess(res, 'User profile updated successfully', {
+      _id: updatedUser._id,
+      name: updatedUser.name,
+      email: updatedUser.email,
+      role: updatedUser.role,
+      address: updatedUser.address,
+      phone: updatedUser.phone,
+    });
+  } else {
+    res.status(404);
+    throw new Error('User account not found');
+  }
+});
+
 module.exports = {
   registerUser,
   loginUser,
   logoutUser,
   getCurrentUser,
+  updateUserProfile,
 };

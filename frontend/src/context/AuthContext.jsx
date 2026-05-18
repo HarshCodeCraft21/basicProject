@@ -103,6 +103,20 @@ export const AuthProvider = ({ children }) => {
     }
   };
 
+  const updateProfile = async (address, phone) => {
+    dispatch({ type: 'SET_LOADING', payload: true });
+    try {
+      const response = await API.put('/auth/profile', { address, phone });
+      if (response.data && response.data.success) {
+        dispatch({ type: 'LOGIN_SUCCESS', payload: response.data.data });
+        return response.data;
+      }
+    } catch (error) {
+      dispatch({ type: 'SET_LOADING', payload: false });
+      throw error;
+    }
+  };
+
   return (
     <AuthContext.Provider
       value={{
@@ -112,6 +126,7 @@ export const AuthProvider = ({ children }) => {
         login,
         signup,
         logout,
+        updateProfile,
         checkAuth: checkAuthStatus,
       }}
     >
